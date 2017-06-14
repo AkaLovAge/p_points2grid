@@ -1,7 +1,10 @@
 #include <iostream>
+#include <stdio.h>
 #include <vector>
 #include "pct/Point.hpp"
 #include "pct/BBox.hpp"
+#include "pct/Grid.hpp"
+#include "pct/util.hpp"
 /*
 BBox::BBox() {
 	struct Point min;
@@ -46,6 +49,35 @@ bool BBox::validate() {
 	else {
 		return false;
 	}
+}
+
+int BBox::getCorners(struct Point* ll, struct Point* lr, struct Point* ur, struct Point* ul) {
+	ll->update(min.x, min.y, min.z);
+	lr->update(max.x, min.y, min.z);
+	ur->update(max.x, max.y, min.z);
+	ul->update(min.x, max.y, min.z);
+	return 0;
+}
+
+int BBox::getGridCells(Grid* grid, int cellIdxs[]) {
+	int count = 0;
+	int idxList[4] = {0,0,0,0};
+	struct Point* ll = new Point();
+	struct Point* lr = new Point();
+	struct Point* ur = new Point();
+	struct Point* ul = new Point();
+	getCorners(ll, lr, ur, ul);
+	idxList[0] = grid->getCellIdx(ll->x,ll->y);
+	idxList[1] = grid->getCellIdx(lr->x, lr->y);
+	idxList[2] = grid->getCellIdx(ur->x, ur->y);
+	idxList[3] = grid->getCellIdx(ul->x, ul->y);
+	count = unique_count(idxList, 4, cellIdxs);
+	//printf("Corner Idx: %i, %i, %i, %i, unique: %i\n", idxList[0], idxList[1], idxList[2], idxList[3], count);
+	delete(ll);
+	delete(lr);
+	delete(ur);
+	delete(ul);
+	return count;
 }
 
 struct Point* BBox::centroid() {

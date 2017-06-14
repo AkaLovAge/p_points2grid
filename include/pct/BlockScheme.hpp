@@ -22,11 +22,12 @@ typedef struct BlockScheme
 	int b_cols; // Number of columns within block
 	int b_rows; // Number of rows within block
 	int proc_count;
+	Grid* block_grid;
 	DType datatype; // Type of data within block
 	BlockScheme();
 	BlockScheme(Grid* grid, int block_limit, DType datatype, int proc_count);
 	void getBlockPosition(int rank, int *position); // Return the col,row index from  block ID
-	int getBlockGrid(int blockId, Grid* grid, int res); // Return a grid object representing block
+	Grid getBlockGrid(int blockId, int res); // Return a grid object representing block
 	int getBlockId(int x, int y); // Get block ID based on col,row indexing
 	int getBlock(long x, long y); // Get the block ID based on pixel coordinates
 	int getBlockRank(int blockId); // Return the rank specified block is assigned to

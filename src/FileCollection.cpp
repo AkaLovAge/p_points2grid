@@ -8,8 +8,8 @@
 #include <sys/stat.h>
 #include <limits.h>
 #include "points2grid/Global.hpp"
-#include "FileCollection.hpp"
-#include "util.hpp"
+#include "pct/FileCollection.hpp"
+#include "pct/util.hpp"
 
 FileCollection::FileCollection(char* _basePath, char* _fileExt) {
 	DIR *dir;
@@ -65,7 +65,7 @@ int FileCollection::getMetadata(int start, int end) {
 	double vm_usage, resident_set = 0.0;
 	int counter = 0;
 	char * ext;
-	char fname[2056] = "";
+	char fname[1024] = "";
 	if ((dir = opendir(basePath)) == NULL)
 	{
 		fprintf(stderr, "IO Error: failed to open base directory: %s, ERRCODE: %s\n", basePath, strerror(errno));
@@ -95,6 +95,10 @@ int FileCollection::getMetadata(int start, int end) {
 							//printf("Appending file index %i for %s\n", counter, entry->d_name);
 							memset(fname, 0, sizeof(fname));
 							int pathLen = sprintf(&fname[0], "%s/%s",basePath, entry->d_name);
+							if (pathLen > sizeof(fname)){
+								printf("Error, string lengh is too long, exiting..");
+								exit(1);
+							}
 							//strcat(fname, basePath);
 							//strcat(fname, "/");
 							//strcat(fname, entry->d_name);
@@ -103,7 +107,9 @@ int FileCollection::getMetadata(int start, int end) {
 							// Allocate the file path
 							//int pathLen = strlen(fname);
 							//int pathLen = strlen(basePath) + strlen(entry->d_name) + 2;
-							fileList[counter] = (char*) malloc(sizeof(char) * pathLen);
+							fileList[counter] = (char*) malloc(sizeof(char) * pathLen+1);
+							if (fileList[counter] == NULL)
+								printf("MALLOC ERROR: failed to allocated string %i\n", counter);
 							strcpy(fileList[counter], fname);
 							//printf("Copied path %i: %s\n", counter, fileList[counter]);
 						}

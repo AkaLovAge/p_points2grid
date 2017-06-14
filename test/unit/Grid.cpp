@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 	printf("Pixel at [%i,%i] is %f", cols-1, rows-1, pix->sum);
 	char outPath[1024] = "/gpfs_scratch/ncasler/data/tmp/grid.tif";
 	int epsg = 3443;
-	grid1->write(&outPath[0], epsg);
+	grid1->write(&outPath[0], epsg, 1);
 
 	int sizeGB = grid1->getSize() / 1000000;
 	cout << "Successfully allocated: " << sizeGB << " GB of memory\n";

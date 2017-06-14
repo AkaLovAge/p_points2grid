@@ -25,7 +25,7 @@ Grid::Grid() {
 	rows = 0;
 	datatype = DT_Unknown;
 	data = NULL;
-	origin = new Point();
+	origin.update(0.0,0.0,0.0);
 }
 /* Note Currently origin is assuming lower-left corner for index function,
   This is not standard for raster data nor is it recommended. Need to change for
@@ -33,7 +33,7 @@ Grid::Grid() {
 */
 Grid::Grid(const struct Point *_origin, int _cols, int _rows, DType _datatype, double _resX, double _resY) 
 {
-	origin = new Point(*_origin);
+	origin = *_origin;
 	cols = _cols;
 	rows = _rows;
 	datatype = _datatype;
@@ -41,6 +41,18 @@ Grid::Grid(const struct Point *_origin, int _cols, int _rows, DType _datatype, d
 	resX = _resX;
 	resY = _resY;
 }
+/* Copy constructor, note: will not copy the data buffer*/
+Grid::Grid(const Grid &other) {
+	origin = other.origin;
+	cols = other.cols;
+	rows = other.rows;
+	datatype = other.datatype;
+	data = NULL; // NOTE: Doesn't copy data buffer
+	resX = other.resX;
+	resY = other.resY;
+}
+
+
 
 Grid::~Grid() {
 	cols = 0;
@@ -49,20 +61,21 @@ Grid::~Grid() {
 	dealloc();
 	resX = 0.0;
 	resY = 0.0;
-	delete(origin);
+	origin.update(0.0,0.0,0.0);
+	//delete(origin);
 }
 /** Allocate the memory necessary for the given grid **/
-void * Grid::alloc() {
+int Grid::alloc() {
 	int d_size = sizeof(Pixel);
 	if (!d_size > 0) {
 		fprintf(stderr, "GridError: Invalid datatype prevented allocation\n");
-		return NULL;
+		return -1;
 	}
 	if (data != NULL) {
 		fprintf(stderr, "GridError: Memory already allocated for grid data\n");
-		return NULL;
+		return -1;
 	}
-	fprintf(stdout, "Allocating %ix%i %zu cells\n", cols, rows, sizeof(Pixel));
+	fprintf(stdout, "Allocating %ix%i %zu size\n", cols, rows, cols*rows*sizeof(Pixel));
 	//data = (Pixel*)malloc(sizeof(Pixel) * cols * rows);
 	//int i = 0;
 	int count = cols * rows;
@@ -76,8 +89,10 @@ void * Grid::alloc() {
 		data[i].sum = 0.0;
 		data[i].filled = 0;
 	}
+	printf("Grid allocated successfully\n");
 	//data = malloc(sizeof(cols * rows * d_size));
-	return data;
+	//return data;
+	return 1;
 }
 
 void Grid::dealloc() {
@@ -88,9 +103,10 @@ void Grid::dealloc() {
 }
 
 // Create a geotiff from the raster
-int Grid::write(char* outPath, int epsg) {
+int Grid::write(char* outPath, int epsg, int type) {
+	// Type 1= Avg, 0 = count
 	GDALDatasetH hDataset;
-	
+	GDALDataType d_type;
 	GDALAllRegister();
 	const char *pszFormat = "GTiff";
 	GDALDriverH hDriver = GDALGetDriverByName( pszFormat );
@@ -108,15 +124,18 @@ int Grid::write(char* outPath, int epsg) {
 		printf( "Driver %s supports Create() method.\n", pszFormat );
 	if ( CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATECOPY, FALSE ) )
 		printf( "Driver %s supports CreateCopy() method.\n", pszFormat );
-	hDataset = GDALCreate( hDriver, outPath, cols, rows, 1, GDT_Float32, papszOptions);
+	if (type == 1) 
+		d_type = GDT_Float32;
+	else 
+		d_type = GDT_Int32;
 	
+	hDataset = GDALCreate( hDriver, outPath, cols, rows, 1, d_type, papszOptions);
 
-	double adfGeoTransform[6] = { origin->x, resX, 0, origin->y, 0, resY * -1};
+	double adfGeoTransform[6] = { origin.x, resX, 0, origin.y, 0, resY * -1};
 	// Geotransform for the raster
 	printf("Setting GeoTranform\n");
 	GDALSetGeoTransform(hDataset, adfGeoTransform);
 	printf("Import EPSG definition\n");
-	char proj4str[240] = "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs";
 	err = OSRImportFromEPSG(hSRS, epsg);
 	if (err != 0) {
 		fprintf(stderr, "Error importing EPSG:%i , ErrCode: %i\n", epsg, err);
@@ -131,17 +150,37 @@ int Grid::write(char* outPath, int epsg) {
 
 	hBand = GDALGetRasterBand(hDataset, 1);
 	// Set no data value for output raster
-	GDALSetRasterNoDataValue(hBand, -9999.0);
-	printf("Allocating sum array\n");
-	float* outArr = getSumArr();
+	if (type == 1)
+		GDALSetRasterNoDataValue(hBand, -9999.0);
+	else
+		GDALSetRasterNoDataValue(hBand, 0);
+	if (type == 1)
+	{
+		printf("Allocating avg array\n");
+		float* outArr = (float*)malloc(sizeof(float)*cols * rows);
+		getSumArr(outArr);
+		GDALRasterIO(hBand, GF_Write, 0, 0, cols, rows, outArr, cols, rows, GDT_Float32, 0,0);
+		free(outArr);
+	}	
+	else
+	{
+		printf("Allocating count array\n");
+		int* outArr = (int*)malloc(sizeof(int) * cols * rows);
+		getCountArr(outArr);
+		int i = 0;
+		for (i = 0; i < cellCount(); i++)
+			printf("[%i:%i]\n", i, outArr[i]);
+
+		GDALRasterIO(hBand, GF_Write, 0, 0, cols, rows, outArr, cols, rows, d_type, 0,0);
+		free(outArr);
+	}
 	printf("Writing output raster to %s\n", &outPath[0]);
-	GDALRasterIO(hBand, GF_Write, 0, 0, cols, rows, outArr, cols, rows, GDT_Float32, 0,0);
 	/*Close the dataset*/
 	printf("Closing Raster\n");
 
 	GDALClose( hDataset);
 
-	free(outArr);
+	//free(outArr);
 	return 1;
 }
 
@@ -157,49 +196,50 @@ size_t Grid::getSize() {
 
 
 double Grid::getMaxX() {
-	double max = origin->x + (resX * cols);
+	double max = origin.x + (resX * cols);
 	return max;
 }
 
 double Grid::getMinY() {
-	double max = origin->y - (resY * rows);
+	double max = origin.y - (resY * rows);
 	return max;
 }
 
 int Grid::getCol(double coord) {
-	if (coord > getMaxX() || coord < origin->x) {
+	if (coord > getMaxX() || coord < origin.x) {
 		return -1;
 	}
-	int idx = floor((coord - origin->x) / resX);
+	int idx = floor((coord - origin.x) / resX);
 	
 	return idx;
 }
 
 int Grid::getRow(double coord) {
-	if (coord < getMinY() || coord > origin->y) {
+	if (coord < getMinY() || coord > origin.y) {
+		//printf("%f is out of bounds [%f, %f]\n", coord, getMinY(), origin->y);
 		return -1;
 	}
-	int idx = floor((origin->y - coord) / resY);
+	int idx = floor((origin.y - coord) / resY);
 	return idx;
 }
 /** Test if a Point intersects with the grid **/
 int Grid::within(const struct Point *pt) {
 	int flag = 0;
-	if (pt->x >= origin->x && pt->x <= getMaxX()) {
-		if (pt->y >= getMinY() && pt->y <= origin->y) {
+	if (pt->x >= origin.x && pt->x <= getMaxX()) {
+		if (pt->y >= getMinY() && pt->y <= origin.y) {
 			flag = 1;
 		} else {
 			cout << "Point out of Row range" << endl;
 		} 
 	} else {
-			cout << "Point out of Col range" << endl;
+		cout << "Point out of Col range" << endl;
 	}
 	return flag;
 }
 /* Assumes that the Point is in raster coordinates */
 int Grid::set(const struct Point* pt) {
-	int i, j;
-	int count = cols * rows;
+	int i;
+	//int count = cols * rows;
 	int col, row = 0;
 	col = getCol(pt->x);
 	row = getRow(pt->y);
@@ -207,49 +247,70 @@ int Grid::set(const struct Point* pt) {
 	//if (i < 0 || i > count) {
 	//	return 0;
 	//}
-	if (col < 0) {
+	if (col < 0 || col >= cols) {
 		return 0;
 	}
-	if (row < 0) {
+	if (row < 0 || row >= rows) {
 		return 0;
 	}
 	//printf("Point coord: (%f,%f,%f)\n", pt->x,pt->y,pt->z);
 	//printf("Pixel index is: [%i,%i]\n", col, row);
 	i = (row * cols) + col;
+	// TODO: Check why this fails
+	//printf("Looking for pixel at %i/%i\n", i, cols*rows);
 	Pixel* cell = &data[i];
-	if (!cell->filled) {
-		cell->sum = pt->z;
+	//printf("Cell status: %i\n", cell->filled);
+	if (cell->filled != 1) {
+		cell->sum = (float)pt->z;
 		cell->count = 1;
 		cell->filled = 1;
 		return 1;
 	} else {
-		float tmpSum = cell->sum + pt->z;
+		float tmpSum = cell->sum + (float)pt->z;
 		int tmpCount = cell->count +1;
 		//printf("New sum = %f, count= %i\n", tmpSum, tmpCount);
 		cell->sum = tmpSum;
 		cell->count = tmpCount;
 		return 1;
 	}
-	
+
 }
 
-float* Grid::getSumArr() {
-	float* out = (float*)malloc(sizeof(float) * cols * rows);
+void Grid::getSumArr(float* out) {
+//	out = (float*)malloc(sizeof(float) * cols * rows);
 	int count = cellCount();
 	int i = 0;
 	for (i = 0; i < count; i++) {
-		if (data[i].filled) {
+		if (data[i].filled == 1) {
 			out[i] = data[i].avg();
 		} else {
 			out[i] = -9999.0;
 		}
 	}
-	return &out[0];
+	//return &out[0];
 }
 
 
+void Grid::getCountArr(int* out) {
+//	out = (int*)malloc(sizeof(int) * cols * rows);
+	int count = cellCount();
+	int i = 0;
+	for( i = 0; i < count; i++) 
+	{
+	//	if (data[i].count) {
+			//printf("%i -> %i\n", i, data[i].count);
+			out[i] = data[i].count;
+	//	}
+	//	else 
+	//	{
+	//		out[i] = 0;
+	//	}
+	}
+	//return &out[0];
+}
+
 Pixel* Grid::get(int col, int row) {
-	Pixel* pix = NULL;
+	//Pixel* pix = NULL;
 	if (data == NULL) {
 		printf("Error: Array not initialized");
 		exit(1);
@@ -258,13 +319,22 @@ Pixel* Grid::get(int col, int row) {
 		return &data[vectorIdx];
 	}
 }
-
-
+// Return the cell id for the given point coordinates
+int Grid::getCellIdx(double x, double y) {
+	int col = getCol(x);
+	int row = getRow(y);
+	if (col < 0 || row < 0)
+		return -1;
+	//printf("Point(%f, %f) ->Grid(%i,%i)\n", x, y, col, row); 
+	int idx = (row * cols) + col;
+	//printf("Col: %i, Row: %i, Idx: %i\n", col, row, idx);
+	return idx;
+}
 
 int Grid::getCell(const struct Point *pt, int* idx) {
 	int i, j = 0;
 	if (!within(pt))  {
-		cout << "Point outside grid bounds\n";
+	//	cout << "Point outside grid bounds\n";
 		return 0;
 	}
 	j = getCol(pt->x);

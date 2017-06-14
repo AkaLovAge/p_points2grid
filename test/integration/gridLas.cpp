@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
 	las.close();
 	char outPath[1024] = "/gpfs_scratch/ncasler/data/tmp/gridTest.tif";
 	printf("Writing grid out to %s\n", &outPath[0]);
-	grid->write(&outPath[0], 3443);
+	grid->write(&outPath[0], 3443, 1);
 	grid->dealloc();
 	end = time(NULL);
 	printf("Finished in %f seconds\n", difftime(end, begin));

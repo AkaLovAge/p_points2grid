@@ -94,6 +94,30 @@ void compareMax(double* maxs, double* tmp) {
 		maxs[2] = tmp[2];
 }
 
-
+int unique_count(int arr[], int len, int uniq_arr[])
+{
+	if (len <= 0) return 0;
+	int unique = 1;
+	uniq_arr[0] = arr[0];
+	int outer, inner, is_unique = 0;
+	for (outer = 1; outer < len; ++outer)
+	{
+		int is_unique = 1;
+		// Don't count negative indexes
+		if (arr[outer] < 0) {
+			continue;
+		}
+		for (int inner = 0; is_unique && inner < outer; ++inner)
+		{
+			if (arr[inner] == arr[outer]) is_unique = 0;
+		}
+		if (is_unique) {
+			
+			uniq_arr[unique] = arr[outer];
+			++unique;
+		}
+	}
+	return unique;
+}
 
 	

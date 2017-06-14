@@ -3,7 +3,8 @@
 
 #include <iostream>
 #include <vector>
-#include "Point.hpp"
+#include "pct/Point.hpp"
+#include "pct/Grid.hpp"
 
 using namespace std;
 
@@ -24,6 +25,9 @@ class BBox
 		double area();
 		vector<BBox*> subdivide();
 		bool validate();
+		int getCorners(struct Point* ll, struct Point* lr, struct Point* ur, 
+				struct Point* ul);
+		int getGridCells(Grid* grid, int cellIdxs[]); // get array of gridcells that intersect corners
 		int intersect(const BBox* other);
 		void print() const;
 };

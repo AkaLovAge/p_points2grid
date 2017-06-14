@@ -268,7 +268,7 @@ std::vector<int> PointBucket::getBlockList(BlockScheme* bScheme) {
 /* Note assumes Points are in raster coords */
 int PointBucket::grid(Grid* destGrid) {
 	int i;
-	int count;
+	//int count = 0; 
 	for (i = 0; i < count; i++) {
 		if (destGrid->set(&pts[i])) {
 			count++;

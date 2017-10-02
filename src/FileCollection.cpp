@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include <limits.h>
 #include "points2grid/Global.hpp"
 #include "pct/FileCollection.hpp"
@@ -31,6 +32,7 @@ int FileCollection::countFiles() {
 	int i = 0;
 	if ((dir = opendir(basePath)) == NULL)
 	{
+		perror("Failed to open base Dir");
 		fprintf(stderr, "Error: Failed to open base directory\n");
 		exit(1);
 	}

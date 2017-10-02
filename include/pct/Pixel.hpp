@@ -4,11 +4,14 @@
 typedef struct Pixel {
 	int count;
 	float sum;
+	float min;
 	char filled;
 	Pixel();
 	~Pixel();
-	float avg();
-
+	int set(float other);
+	int is_filled() const;
+	float avg() const;
+	int set(const struct Pixel* other);
 } Pixel;
 
 #endif

@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <iomanip>
 #include <math.h>
+#include <string.h>
 #include "pct/Point.hpp"
 #include "pct/Grid.hpp"
 #include "pct/DTypes.hpp"
 #include "pct/BlockScheme.hpp"
+#include <gdal.h>
+#include <vrtdataset.h>
 
 BlockScheme::BlockScheme() {
 	cols = 0;
@@ -139,4 +142,50 @@ BlockScheme::BlockScheme(Grid* grid, int block_limit, DType _datatype, int _proc
 
 };
 
-
+/** Function to generate a VRT for the output dataset
+ 
+void BlockScheme::buildVRT(char* outPath) {
+	//GDALDriver *poDriver = (GDALDriver *) GDALGetDriverByName( "VRT" );
+	//GDALDataset *poVRTDS;
+	VRTDatasetH hVRTDS = VRTCreate(nRasterXSize, nRasterYSize);
+	GDALSetDescription(hVRTDS, pszOutputFilename);
+	int i = 0;
+	int pos[2] = {0,0};
+	char filename[20];
+	char img_off[10];
+	char pix_off[10];
+	char line_off[10];
+	char byte_order[10];
+	char rel_to_vrt[10];
+	double adfGeoTransform[6];
+	//poVRTDS = poDriver->Create( "block.vrt", cols * b_cols, rows * b_rows, 0, GDT_Float32, NULL );
+	char** papszOptions = NULL;
+	for (i =0; i < block_grid->cellCount(); i++) 
+	{
+		getBlockPosition(i, pos);
+		memset(filename, 0, 20);
+		memset(img_off, 0, 10);
+		memset(pix_off, 0, 10);
+		memset(line_off, 0, 10);
+		memset(byte_order, 0, 10);
+		memset(rel_to_vrt, 0, 6);
+		sprintf(filename, "%i.tif", i);
+		sprintf(img_off, "%i", pos[0]); // Image offset
+		sprintf(pix_off, "%i", 0);
+		sprintf(line_off, "%i", pos[1]);
+		sprintf(byte_order, "%s", "LSB");
+		sprintf(rel_to_vrt, "%s", "true");
+		papszOptions = CSLAddNameValue(papszOptions, "subclass", "VRTRawRasterBand"); // if not specified, default to VRT RasterBand
+		papszOptions = CSLAddNameValue(papszOptions, "SourceFilename", filename);
+		papszOptions = CSLAddNameValue(papszOptions, "ImageOffset", img_off);
+		papszOptions = CSLAddNameValue(papszOptions, "PixelOffset", pix_off);
+		papszOptions = CSLAddNameValue(papszOptions, "LineOffset", line_off);
+		papszOptions = CSLAddNameValue(papszOptions, "ByteOrder", byte_order);
+		papszOptions = CSLAddNameValue(papszOptions, "relativeToVRT", rel_to_vrt);
+		poVRTDS->AddBand(GDT_Float32, papszOptions);
+		CSLDestroy(papszOptions);
+		// Create band
+	}
+	poVRTDS->SerializeToXML(outPath);
+}
+*/

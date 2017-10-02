@@ -13,6 +13,7 @@
 #include "pct/Point.hpp"
 #include "pct/DTypes.hpp"
 #include "pct/Pixel.hpp"
+#include <mpi.h>
 using namespace std;
 
 typedef struct Grid
@@ -42,8 +43,16 @@ typedef struct Grid
 	int set(const struct Point *pt);
 	Pixel* get(int col, int row);
 	void getSumArr(float* arr); // Return array representing the sum for each pixel
+	void getMinArr(float* arr); // Return array
 	void getCountArr(int* arr); // Returns the number of points per cell
 	int getCell(const struct Point *pt, int* idx);
+	int fillNull(int radius);
+	Pixel* createGhostCells(int radius);
+	int fillGhostCells(Pixel* ghost, int radius);
+	int putGhostTop(Pixel* ghost, int radius, int target, MPI_Win window);
+	int putGhostBottom(Pixel* ghost, int radius, int target, MPI_Win window);
+	int putGhostLeft(Pixel* ghost, int radius, int target, MPI_Win window);
+	int putGhostRight(Pixel* ghost, int radius, int target, MPI_Win window);
 } Grid;
 
 

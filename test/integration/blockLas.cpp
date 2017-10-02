@@ -29,10 +29,11 @@ int main(int argc, char* argv[]) {
 	/*   Parameter declaration                          */
 	/****************************************************/
 	// Index params
-	int i,j,k = 0;
+	int i = 0, j = 0,k = 0;
 	
 	// Directory path params
 	char input_path[2056];
+	char file_list[1024];
 	char scratch_path[2056];
 	char output_path[2056];
 	char tmp_path[2056];
@@ -99,6 +100,7 @@ int main(int argc, char* argv[]) {
 	general.add_options()
 		("help", "produce a help message")
 		("input_file_path,i",po::value<std::string>(),"required. Name of input directory of LAS files")
+		("file_list,f",po::value<std::string>(),"optional. Path to file listing inputs")
 		("scratch_path,s", po::value<std::string>(),"required. Name of scratch directory")
 		("output_path,o",po::value<std::string>(),"required. Name of output directory")
 		("resolution,r", po::value<float>(),"required. Output Resolution")
@@ -123,6 +125,9 @@ int main(int argc, char* argv[]) {
 			strncpy(input_path, vm["input_file_path"].as<std::string>().c_str(), sizeof(input_path));
 		} else {
 			throw std::logic_error("Input File Path required");
+		}
+		if (vm.count("file_list")) {
+			strncpy(file_list, vm["file_list"].as<std::string>().c_str(), sizeof(file_list));
 		}
 		if (vm.count("scratch_path")) {
 			strncpy(scratch_path, vm["scratch_path"].as<std::string>().c_str(), sizeof(scratch_path));
@@ -467,6 +472,8 @@ int main(int argc, char* argv[]) {
 		}
 		blk_scheme->block_grid->write(dens_tif, 3443,0);
 		blk_scheme->block_grid->dealloc();
+		sprintf(dens_tif, "%s/block.vrt", output_path);
+		//blk_scheme->buildVRT(dens_tif);
 
 	}
 	else 
@@ -537,6 +544,7 @@ int main(int argc, char* argv[]) {
 				printf("[%i]Continuing to file%i/%i for block %i\n", world_rank, 
 						j+1, g_blk_cnts[block_idx], block_idx);
 			}
+			//blk_grid.fillNull(7);
 			printf("[%i]Finished reading, beginning write\n",world_rank);
 			sprintf(outPath, "%s/%i.tif", output_path, block_idx);
 			/*if (i == 1) {

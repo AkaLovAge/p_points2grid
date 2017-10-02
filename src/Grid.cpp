@@ -13,7 +13,7 @@
 #include "pct/Grid.hpp"
 #include "pct/Pixel.hpp"
 #include "pct/DTypes.hpp"
-
+#include <float.h>
 #include "gdal.h"
 #include "cpl_conv.h" // for CPLMalloc()
 #include "cpl_string.h"
@@ -88,6 +88,7 @@ int Grid::alloc() {
 		data[i].count = 0;
 		data[i].sum = 0.0;
 		data[i].filled = 0;
+		data[i].min = FLT_MAX;
 	}
 	printf("Grid allocated successfully\n");
 	//data = malloc(sizeof(cols * rows * d_size));
@@ -154,15 +155,17 @@ int Grid::write(char* outPath, int epsg, int type) {
 		GDALSetRasterNoDataValue(hBand, -9999.0);
 	else
 		GDALSetRasterNoDataValue(hBand, 0);
-	if (type == 1)
+	if (type > 0 && type < 3)
 	{
-		printf("Allocating avg array\n");
+		printf("Allocating min array\n");
 		float* outArr = (float*)malloc(sizeof(float)*cols * rows);
-		getSumArr(outArr);
+		if (type == 1) 
+			getMinArr(outArr);
+		else // type is 2 : average
+			getSumArr(outArr);
 		GDALRasterIO(hBand, GF_Write, 0, 0, cols, rows, outArr, cols, rows, GDT_Float32, 0,0);
 		free(outArr);
-	}	
-	else
+	} else 
 	{
 		printf("Allocating count array\n");
 		int* outArr = (int*)malloc(sizeof(int) * cols * rows);
@@ -260,21 +263,28 @@ int Grid::set(const struct Point* pt) {
 	//printf("Looking for pixel at %i/%i\n", i, cols*rows);
 	Pixel* cell = &data[i];
 	//printf("Cell status: %i\n", cell->filled);
-	if (cell->filled != 1) {
+	int flag = cell->set(pt->z);
+
+	/*if (cell->filled != 1) {
 		cell->sum = (float)pt->z;
 		cell->count = 1;
 		cell->filled = 1;
 		return 1;
 	} else {
-		float tmpSum = cell->sum + (float)pt->z;
-		int tmpCount = cell->count +1;
+	//	float tmpSum = cell->sum + (float)pt->z;
+	//	int tmpCount = cell->count +1;
 		//printf("New sum = %f, count= %i\n", tmpSum, tmpCount);
-		cell->sum = tmpSum;
-		cell->count = tmpCount;
+		cell->sum = cell->sum + (float)pt->z;
+		cell->count = cell->count + 1;;
 		return 1;
-	}
+	}*/
+	return flag;
 
 }
+
+
+
+
 
 void Grid::getSumArr(float* out) {
 //	out = (float*)malloc(sizeof(float) * cols * rows);
@@ -288,6 +298,19 @@ void Grid::getSumArr(float* out) {
 		}
 	}
 	//return &out[0];
+}
+
+void Grid::getMinArr(float* out) {
+	float min = FLT_MAX;
+	int i = 0;
+	int count = cellCount();
+	for (i = 0; i < count; ++i) {
+		if (data[i].filled == 1) {
+			out[i] = data[i].min;
+		} else {
+			out[i] = -9999.0;
+		}
+	}
 }
 
 
@@ -312,10 +335,13 @@ void Grid::getCountArr(int* out) {
 Pixel* Grid::get(int col, int row) {
 	//Pixel* pix = NULL;
 	if (data == NULL) {
-		printf("Error: Array not initialized");
-		exit(1);
+		return NULL;
 	} else {
+		if (col < 0 || col > cols || row < 0 || row > rows)
+			return NULL;
 		int vectorIdx = row * rows + col;
+		if (vectorIdx < 0 || vectorIdx > cols * rows)
+			return NULL;
 		return &data[vectorIdx];
 	}
 }
@@ -343,4 +369,134 @@ int Grid::getCell(const struct Point *pt, int* idx) {
 	idx[1] = i;
 	return 1;
 }
+ 
+int Grid::fillNull(int radius) {
+	Pixel* idx = NULL;
+	Pixel* other = NULL;
+	int i,j,k,l;
+	//double sum = 0.0;
+	//int cnt = 0;
+	for(i = 0; i < rows; i++)
+	{
+		for (j = 0; j < cols; j++)
+		{
+			idx = get(j, i);
+			if (!idx) 
+				continue;
+			if (!idx->is_filled()) 
+			{
+				//printf("Cell %i,%i null\n", j,i);
+				for (k = -radius; k < radius; k++) 
+				{
+					for (l = -radius; l < radius; l++) 
+					{
+						//printf("Checking %i,%i\n", l+j, k+i);
+						other = get(l+j,k+i);
+						if (!other)
+							continue;
+						if (other->is_filled()) 
+						{
+							
+							idx->set(other);
+							//cnt++;
+							//printf("Pix(%i,%i) set to %f\n", j, i, idx->avg());
+						}
+					}
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+/** Array structure { top_ghost, bottom_ghost, left_ghost, right_ghost} */
+Pixel* Grid::createGhostCells(int radius) 
+{
+	//int new_cols = cols + 2 * radius;
+	//int new_rows = rows + 2 * radius;
+	//int i,j;
+	int col_arr_len = cols * radius;
+	int row_arr_len = rows * radius;
+	Pixel* new_data = (Pixel *)malloc(sizeof(Pixel) * 2 *(col_arr_len + row_arr_len));
+	//Pixel* new_data = (Pixel *)malloc(sizeof(Pixel) * new_cols * new_rows);
 	
+	//for (i = 0 + radius; i < rows; i++)
+	//{
+	//	for (j = 0 + radius; j < cols; j++) 
+	//	{
+	//		new_data[i] = get(j, i);
+	//	}
+	//}
+	return new_data;
+}
+
+int Grid::fillGhostCells(Pixel* ghost, int radius)
+{
+	int idx = 0;
+	int idx2 = 0;
+	int i = 0;
+	int col_arr_len = cols * radius;
+	int row_arr_len = rows * radius;
+	// fill top rows
+	memcpy(ghost, data, sizeof(Pixel) * cols * radius);
+	// fill bottim rows
+	idx = cols * radius;
+	idx2 = (cols * rows) - (cols * radius + 1); // -1 to align with index, may not be needed
+	memcpy(&ghost[idx], &data[idx2], sizeof(Pixel) * cols * radius);
+	// fill left cols
+	idx = 0;
+	idx2 = cols * 2 * radius;
+	for (i = 0; i < rows; i++) {
+		idx = col_arr_len * 2 + (i * radius);
+		idx2 = i * cols;
+		memcpy(&ghost[idx], &data[idx2], sizeof(Pixel) * radius);
+	}
+	// fill right cols
+	for (i = 0; i < rows; i++)
+	{
+		idx = (col_arr_len * 2 + row_arr_len)  + i * cols - radius;
+		idx2 = i * cols - radius;
+		memcpy(&ghost[idx], &data[idx2], sizeof(Pixel) * radius);
+	}
+	return 0;
+}
+
+// Send row data to top neighbor
+int Grid::putGhostTop(Pixel* ghost, int radius, int target, MPI_Win window)
+{
+	int idx = cols * radius * sizeof(Pixel);
+	int cnt = sizeof(Pixel) * cols * radius;
+	int flag = 0;
+	flag = MPI_Put(ghost, cnt, MPI_BYTE, target, idx, cnt, MPI_BYTE, window);
+	return flag;
+}
+
+// Send row data to bottom neighbor
+int Grid::putGhostBottom(Pixel* ghost, int radius, int target, MPI_Win window)
+{
+	int idx = cols * radius;
+	int cnt = sizeof(Pixel) * cols * radius;
+	int flag = 0;
+	flag = MPI_Put(&ghost[idx], cnt, MPI_BYTE, target, 0, cnt, MPI_BYTE, window);
+	return flag;
+}
+
+int Grid::putGhostLeft(Pixel* ghost, int radius, int target, MPI_Win window)
+{
+	int idx = cols * radius * 2;
+	int idx2 = idx + rows* radius;
+	int cnt = sizeof(Pixel) * rows * radius;
+	int flag = 0;
+	flag = MPI_Put(&ghost[idx], cnt, MPI_BYTE, target, idx2, cnt, MPI_BYTE, window);
+	return flag;
+}
+
+int Grid::putGhostRight(Pixel* ghost, int radius, int target, MPI_Win window)
+{
+	int idx = cols * radius * 2 + radius * rows;
+	int idx2 = cols * radius * 2;
+	int cnt = sizeof(Pixel)* rows * radius;
+	int flag = 0;
+	flag = MPI_Put(&ghost[idx], cnt, MPI_BYTE, target, idx2, cnt, MPI_BYTE, window);
+	return flag;
+}

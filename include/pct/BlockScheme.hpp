@@ -33,6 +33,7 @@ typedef struct BlockScheme
 	int getBlockRank(int blockId); // Return the rank specified block is assigned to
 	int getBlockCount(int rank); // Return the number of blocks to be mapped to a particular processor
 	int* getBlocks(int rank); // Return the indexes of the processors blocks
+	void buildVRT(char* outPath);
 	~BlockScheme();
 	//getBlock(int p_x, int p_y, int *block_x, int *block_y);
 } BlockScheme;

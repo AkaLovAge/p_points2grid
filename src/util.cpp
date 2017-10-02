@@ -6,6 +6,7 @@
 #include <fstream>
 #include <string>
 #include <math.h>
+#include <assert.h>
 
 double randomVal(int range, int min) {
 	int newMin = min;
@@ -120,4 +121,19 @@ int unique_count(int arr[], int len, int uniq_arr[])
 	return unique;
 }
 
-	
+int compareFloat(float a, float b, int maxUlps) {
+	assert(maxUlps > 0 && maxUlps < 4 * 1024 * 1024);
+	int a_int = *(int*)&a;
+	// Make a Int lexicographically ordered as a twos-complement int
+	if (a_int < 0) 
+		a_int = 0x80000000 - a_int;
+	// make b int lexicographically ordered as a twos-complement int
+	int b_int = *(int*)&b;
+	if (b_int < 0)
+		b_int = 0x80000000 - b_int;
+	int int_diff = abs(a_int - b_int);
+	if (int_diff <= maxUlps)
+		return 1;
+	return 0;
+}
+

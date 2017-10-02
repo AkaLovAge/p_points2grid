@@ -14,4 +14,6 @@ void compareMin(double* mins, double* tmp);
 void compareMax(double* maxs, double* tmp);
 
 int unique_count(int arr[], int len, int uniq_arr[]); // Retrieve uniq array and length from array
+
+int compareFloat(float a, float b, int maxUlps);
 #endif
